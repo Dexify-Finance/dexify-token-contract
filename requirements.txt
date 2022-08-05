@@ -1,0 +1,57 @@
+NFT Types
+1. Avatar (Human/Keeper)
+2. Egg/Dragon
+3. Components
+
+1. Avatar (Human/Keeper)
+1) Traits
+    - Race
+    - Hairstyle 
+    - Tops 
+    - Bottoms 
+    - Hairstyles 
+    - Tattoos 
+    - Shoes 
+    - Glasses 
+    - Eye 
+    - etc
+
+2) States
+    - Strength 
+    - Agility 
+    - Charisma 
+    - Knowledge 
+    - Luck 
+    - Endurance 
+    - Magic
+
+3) Requirement
+    - Human avatar total supply 10K
+    - Human avatar can be trained to be Keeper avatar.
+    - Holder can lock a Human for a certain period of time or paying a certain amount of fee to change it into a Keeper.
+    - Avatar can be customized in appearance using component NFTs
+    - Avatar can be upgraded in terms of states (level up) by locking for a certain period or paying certain amount of fee.
+    - Upgrading level and Customizing appearance cannot be taken placed at the same time.
+    - Customizing appearance needs certain component nfts.
+
+2. Egg/Dragon
+1) Egg
+ - Traits
+    There are 4 types of art for all eggs.
+ - States
+    classified : 4 types of class : Common, Uncommon, Rare, Legendary
+    gender: 2 values - Male, Female
+ - Requirements
+    Only keepers can mint eggs.
+    Gender is allocated randomly. Male is 99.5%, and female is 0.5%
+    Eggs can be hatched after certain period of lock
+2) Dragon
+ -Traits
+    There are 5 types of art for all dragons.: Attack, Healer, Stealth, Rescue, Supply
+- stats
+    - Fire Damage
+    - Healing
+    - Agility
+    - Loyalty
+    - Magic (source of power)
+    - Dexterity (ability to complete tasks successfully)

@@ -1,0 +1,172 @@
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { expect } from "chai";
+import { BigNumber, Contract } from "ethers";
+import { ethers, getNamedAccounts, network,  } from "hardhat";
+import ERC20ABI from '../data/ERC20';
+import {assetMetadataUris, initSates, metadataUris, names} from '../data/AvatarData';
+import signMessage from '../utils/sign';
+import { parseEther } from "@ethersproject/units";
+import { Age, eggUris, Gender, initialStats, Stat, tokenUris } from '../data/DragonData';
+
+let token: Contract;
+let weth: Contract;
+let avatar: Contract;
+let avatarSaleManager: Contract;
+let avatarUpdateManager: Contract;
+
+let dragon: Contract;
+let dragonSaleManager: Contract;
+let dragonUpdateManager: Contract;
+let dragonBreedingManager: Contract;
+
+let _signer: SignerWithAddress;
+let other1: SignerWithAddress;
+let other2: SignerWithAddress;
+
+const maxBatchSize = 20;
+const collectionSize = 1000;
+let signature: any;
+
+describe.only('Dragon', () => {
+    
+    const moveTime = async (timeInSeconds: number) => {
+        await network.provider.send("evm_increaseTime", [timeInSeconds]);
+        await network.provider.send("hardhat_mine", ["0x1"]);
+    }
+
+    beforeEach(async () => {
+        _signer = (await ethers.getSigners())[0];
+        other1 = (await ethers.getSigners())[1];
+        other2 = (await ethers.getSigners())[2];
+    
+        const tokenFactory = await ethers.getContractFactory("PYRE"); 
+        token = await tokenFactory.deploy(_signer.address, "0xa5E0829CaCEd8fFDD4De3c43696c57F7D7A678ff");
+        await token.deployed();
+    
+        const avatarFactory = await ethers.getContractFactory('Avatar');
+        avatar = await avatarFactory.deploy(maxBatchSize, collectionSize);
+        await avatar.deployed();
+
+        const avatarSaleManagerFactory = await ethers.getContractFactory('AvatarSaleManager');
+        avatarSaleManager = await avatarSaleManagerFactory.deploy(avatar.address, token.address, _signer.address);
+        await avatarSaleManager.deployed();
+
+        const avatarUpdateManagerFactory = await ethers.getContractFactory('AvatarUpdateManager');
+        avatarUpdateManager = await avatarUpdateManagerFactory.deploy(avatar.address, _signer.address);
+        await avatarUpdateManager.deployed();
+
+        const dragonFactory = await ethers.getContractFactory('Dragon');
+        // @ts-ignore
+        dragon = await dragonFactory.deploy(maxBatchSize, collectionSize, tokenUris, eggUris, initialStats);
+    
+        const dragonSaleManagerFactory = await ethers.getContractFactory('DragonSaleManager');
+        dragonSaleManager = await dragonSaleManagerFactory.deploy(dragon.address,avatar.address, token.address, _signer.address);
+        await dragonSaleManager.deployed();
+    
+        const dragonUpdateManagerFactory = await ethers.getContractFactory('DragonUpdateManager');
+        // @ts-ignore
+        dragonUpdateManager = await dragonUpdateManagerFactory.deploy(dragon.address, _signer.address, initialStats);
+        await dragonUpdateManager.deployed();
+    
+        const breedingFactory = await ethers.getContractFactory('DragonBreedingManager');
+        dragonBreedingManager = await breedingFactory.deploy(dragon.address);
+        await dragonBreedingManager.deployed();
+        
+        await avatar.connect(_signer).addMinter(avatarSaleManager.address);
+        await avatar.connect(_signer).addUpdater(avatarUpdateManager.address);
+
+        await dragon.connect(_signer).addMinter(dragonSaleManager.address);
+        await dragon.connect(_signer).addUpdater(dragonUpdateManager.address);
+    
+        await dragonSaleManager.connect(_signer).setPriceInEth(parseEther("10"));
+        await dragonSaleManager.connect(_signer).setPriceInToken(parseEther("100"));
+    
+        signature = await signMessage(["address"], [_signer.address]);
+
+        await avatarSaleManager.connect(_signer).mintNFT(5, initSates, metadataUris, signature, names );
+        await avatar.connect(_signer).approve(avatarUpdateManager.address, 0);
+        await avatarUpdateManager.connect(_signer).requestUpgradeToKeeper(0);
+        await moveTime(3600 * 24 * 7);
+        await avatarUpdateManager.connect(_signer).upgradeToKeeper(0, metadataUris[1], signature);
+
+    });
+
+    it('Deploy: ', async () => {
+        expect(await dragon.totalSupply()).to.be.equal(0);
+        expect(await dragonUpdateManager.getSigner()).to.be.equal(_signer.address)
+        expect(await dragonSaleManager.getSigner()).to.be.equal(_signer.address)
+    });
+
+    it('Mint egg: ', async () => {
+        expect(await dragon.totalSupply()).to.be.equal(0);
+        await dragonSaleManager.connect(_signer).mintNFT(1, signature, ['test'], {
+            value: parseEther('10')
+        });
+        expect(await dragon.totalSupply()).to.be.equal(1);
+
+    });
+
+    it('Hatch egg: ', async () => {
+        await dragonSaleManager.connect(_signer).mintNFT(1, signature, ['test'], {
+            value: parseEther('10')
+        });
+        expect(await dragon.isHatched(0)).to.be.equal(false);
+
+        await dragon.connect(_signer).approve(dragonUpdateManager.address, 0);
+        await dragonUpdateManager.connect(_signer).requestHatchEgg(0);
+        await expect(dragonUpdateManager.connect(_signer).hatchEgg(0, signature)).revertedWith('Not available now.');
+        await moveTime(3 * 3600 * 24);
+        await dragonUpdateManager.connect(_signer).hatchEgg(0, signature);
+        expect(await dragon.isHatched(0)).to.be.equal(true);
+
+    });
+
+    it('Check age: ', async () => {
+        await dragonSaleManager.connect(_signer).mintNFT(1, signature, ['test'], {
+            value: parseEther('10')
+        });
+        expect(await dragon.getAge(0)).to.be.equal(Age.Egg);
+
+        await dragon.connect(_signer).approve(dragonUpdateManager.address, 0);
+        await dragonUpdateManager.connect(_signer).requestHatchEgg(0);
+        await moveTime(3 * 3600 * 24);
+        await dragonUpdateManager.connect(_signer).hatchEgg(0, signature);
+
+        expect(await dragon.getAge(0)).to.be.equal(Age.Hatchling);
+        
+        await moveTime(2 * 3600 * 24 + 100);
+        expect(await dragon.getAge(0)).to.be.equal(Age.Adolescent);
+
+        await moveTime(3 * 3600 * 24);
+        expect(await dragon.getAge(0)).to.be.equal(Age.Adult);
+    });
+
+    it('Train dragon: ', async () => {
+        await dragonSaleManager.connect(_signer).mintNFT(1, signature, ['test'], {
+            value: parseEther('10')
+        });
+        
+        await dragon.connect(_signer).approve(dragonUpdateManager.address, 0);
+        await expect(dragonUpdateManager.connect(_signer).requestUpgradeState(0, [Stat.Agility, Stat.FireDamage])).revertedWith('Dragon should be hatched first.');
+        
+        await dragonUpdateManager.connect(_signer).requestHatchEgg(0);
+        await moveTime(3 * 3600 * 24);
+        await dragonUpdateManager.connect(_signer).hatchEgg(0, signature);
+
+        const agility = await dragon.getIndividualDragonState(0, Stat.Agility);
+        const fireDamange = await dragon.getIndividualDragonState(0, Stat.FireDamage);
+        await dragon.connect(_signer).approve(dragonUpdateManager.address, 0);
+        await dragonUpdateManager.connect(_signer).requestUpgradeState(0, [Stat.Agility, Stat.FireDamage]);
+        await moveTime(3600 * 24);
+        await expect(dragonUpdateManager.connect(_signer).upgradeState(0, signature)).revertedWith('Not available now.');
+        await moveTime(3600 * 24);
+        await dragonUpdateManager.connect(_signer).upgradeState(0, signature);
+        const upgradedAgility = await dragon.getIndividualDragonState(0, Stat.Agility);
+        const upgradedFireDamage = await dragon.getIndividualDragonState(0, Stat.FireDamage);
+
+        expect(upgradedAgility - agility).to.be.equal(1);
+        expect(upgradedFireDamage - fireDamange).to.be.equal(1);
+
+    });
+
+});
