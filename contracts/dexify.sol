@@ -205,10 +205,7 @@ contract Dexify {
     uint8 public constant decimals = 18;
 
     /// @notice Total number of tokens in circulation
-    uint public totalSupply = 500_000_000e18; // 1 billion Dexify
-
-    /// @notice Address which may mint new tokens
-    address public minter;
+    uint public totalSupply = 500_000_000e18; // 500M Dexify
 
     /// @notice Allowance amounts on behalf of others
     mapping (address => mapping (address => uint96)) internal allowances;
@@ -243,9 +240,6 @@ contract Dexify {
     /// @notice A record of states for signing / validating signatures
     mapping (address => uint) public nonces;
 
-    /// @notice An event thats emitted when the minter address is changed
-    event MinterChanged(address minter, address newMinter);
-
     /// @notice An event thats emitted when an account changes its delegate
     event DelegateChanged(address indexed delegator, address indexed fromDelegate, address indexed toDelegate);
 
@@ -261,44 +255,10 @@ contract Dexify {
     /**
      * @notice Construct a new Dexify token
      * @param account The initial account to grant all the tokens
-     * @param minter_ The account with minting ability
      */
-    constructor(address account, address minter_) public {
+    constructor(address account) public {
         balances[account] = uint96(totalSupply);
         emit Transfer(address(0), account, totalSupply);
-        minter = minter_;
-        emit MinterChanged(address(0), minter);
-    }
-
-    /**
-     * @notice Change the minter address
-     * @param minter_ The address of the new minter
-     */
-    function setMinter(address minter_) external {
-        require(msg.sender == minter, "Dexify::setMinter: only the minter can change the minter address");
-        emit MinterChanged(minter, minter_);
-        minter = minter_;
-    }
-
-    /**
-     * @notice Mint new tokens
-     * @param dst The address of the destination account
-     * @param rawAmount The number of tokens to be minted
-     */
-    function mint(address dst, uint rawAmount) external {
-        require(msg.sender == minter, "Dexify::mint: only the minter can mint");
-        require(dst != address(0), "Dexify::mint: cannot transfer to the zero address");
-
-        // mint the amount
-        uint96 amount = safe96(rawAmount, "Dexify::mint: amount exceeds 96 bits");
-        totalSupply = safe96(SafeMath.add(totalSupply, amount), "Dexify::mint: totalSupply exceeds 96 bits");
-
-        // transfer the amount to the recipient
-        balances[dst] = add96(balances[dst], amount, "Dexify::mint: transfer amount overflows");
-        emit Transfer(address(0), dst, amount);
-
-        // move delegates
-        _moveDelegates(address(0), delegates[dst], amount);
     }
 
     /**

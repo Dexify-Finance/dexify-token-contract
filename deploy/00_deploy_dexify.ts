@@ -8,8 +8,7 @@ const fn: DeployFunction = async function ({ deployments: { deploy }, ethers: { 
     log: true,
     skipIfAlreadyDeployed: true,
     args: [
-        deployer.address,
-        deploy.address
+        deployer.address
     ]
   });
   console.log('npx hardhat verify --network '+ network.name +  ' ' + contractDeployed.address);
